@@ -22,7 +22,7 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+Simply run the `tubes` binary to start a proxy from localhost:3000 to localhost:80
 
 ## Development
 
