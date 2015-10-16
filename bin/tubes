@@ -1,7 +1,6 @@
 #/usr/bin/env ruby
 
 require 'tubes'
-puts 'hi'
 
 tube_proxy = Tubes::Proxy.new "localhost", "3000"
 tube_proxy.run
