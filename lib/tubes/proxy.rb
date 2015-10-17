@@ -5,11 +5,11 @@ require 'celluloid/debug'
 module Tubes
   class Proxy
     include Celluloid::IO
+    include Celluloid::Internals::Logger
+
     finalizer :shutdown
 
     def initialize(host, port)
-      
-
       @server = Celluloid::IO::TCPServer.new(host, port)
     end
 
@@ -19,13 +19,12 @@ module Tubes
 
     def run
       loop {
-        #puts "Waiting for accept..."
-        puts "*** Starting proxy server"
+        info "*** Starting proxy server"
         socket = @server.accept
         proxy_socket = Celluloid::IO::TCPSocket.new 'localhost', 80
         
-        puts "Got a socket: #{socket.object_id}"
-        puts "connected to: #{proxy_socket.object_id}"
+        info "Got a socket: #{socket.object_id}"
+        info "connected to: #{proxy_socket.object_id}"
 
         handle_connection socket, proxy_socket
       }
@@ -37,13 +36,15 @@ module Tubes
     end
 
     def close_socket(s)
+      info "#{s.object_id} closing"
+
       s.close
     rescue Exception => e
-      puts "#{s.object_id} raise error when closing: #{e.inspect}"
+      info "#{s.object_id} raise error when closing: #{e.inspect}"
     end
 
     def proxy_socket(socket_from, socket_to, n)
-      puts "#{n}: Proxying #{socket_from.object_id} to #{socket_to.object_id}"
+      info "#{n}: Proxying #{socket_from.object_id} to #{socket_to.object_id}"
 
       begin
         buf = ''
@@ -55,7 +56,7 @@ module Tubes
         close_socket socket_from
       end
     ensure
-      puts "#{n}: Finished #{socket_from.object_id} to #{socket_to.object_id}"
+      info "#{n}: Finished #{socket_from.object_id} to #{socket_to.object_id}"
     end
   end
 end
