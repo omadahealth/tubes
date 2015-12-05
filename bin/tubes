@@ -2,5 +2,5 @@
 
 require 'tubes'
 
-tube_proxy = Tubes::Proxy.new "localhost", "3000"
+tube_proxy = Tubes::Proxy.new "0.0.0.0", "3000"
 tube_proxy.run

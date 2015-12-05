@@ -1,62 +1,59 @@
-require 'celluloid/current'
-require 'celluloid/io'
-require 'celluloid/debug'
+require 'em-proxy'
+require 'http/parser'
+require 'uuid'
+require 'docker'
 
 module Tubes
   class Proxy
-    include Celluloid::IO
-    include Celluloid::Internals::Logger
-
-    finalizer :shutdown
+    attr_accessor :host, :port
 
     def initialize(host, port)
-      @server = Celluloid::IO::TCPServer.new(host, port)
+      @host = host
+      @port = port
     end
 
-    def shutdown
-      @server.close if @server
-    end
 
     def run
-      loop {
-        info "*** Starting proxy server"
-        socket = @server.accept
-        proxy_socket = Celluloid::IO::TCPSocket.new 'localhost', 80
-        
-        info "Got a socket: #{socket.object_id}"
-        info "connected to: #{proxy_socket.object_id}"
+      puts "listening on #{host}:#{port}..."
 
-        handle_connection socket, proxy_socket
-      }
-    end
+      ::Proxy.start(:host => host, :port => port) do |conn|
+        @buffer = ''
+        @headers_complete = false
 
-    def handle_connection(socket, proxy_socket)
-      async.proxy_socket(proxy_socket,socket, 1)
-      async.proxy_socket(socket, proxy_socket, 2)
-    end
-
-    def close_socket(s)
-      info "#{s.object_id} closing"
-
-      s.close
-    rescue Exception => e
-      info "#{s.object_id} raise error when closing: #{e.inspect}"
-    end
-
-    def proxy_socket(socket_from, socket_to, n)
-      info "#{n}: Proxying #{socket_from.object_id} to #{socket_to.object_id}"
-
-      begin
-        buf = ''
-        loop do
-          socket_to.write socket_from.readpartial(4096, buf) 
+        @p = Http::Parser.new
+        @p.on_headers_complete = proc do |headers|
+          begin
+            session = UUID.generate
+            puts "New session: #{session} (#{headers.inspect})"
+            tubes_host = headers['Host'].split(':').first.split(".").first
+            target_container = Docker::Container.all(filters: {
+                                                       label: ["tubes.http.port",
+                                                               "tubes.http.host=#{tubes_host}"]
+                                                     }.to_json).sample
+            
+            port = target_container.info["Labels"]["tubes.http.port"]
+            host = Docker::Container.get(target_container.id).info["NetworkSettings"]["IPAddress"]
+            conn.server session, :host => host, :port => port
+            
+            conn.relay_to_servers @buffer
+          rescue
+            puts "Error processing request"
+            conn.close_connection
+          ensure
+            @buffer.clear
+            @headers_complete = true
+          end
         end
-      rescue Exception => e
-        close_socket socket_to
-        close_socket socket_from
+                
+        conn.on_data do |data|
+          unless @headers_complete
+            @buffer << data
+            @p << data
+          end
+          
+          data
+        end
       end
-    ensure
-      info "#{n}: Finished #{socket_from.object_id} to #{socket_to.object_id}"
     end
   end
 end
