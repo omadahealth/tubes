@@ -8,6 +8,21 @@ TODO: Delete this and the text above, and describe your gem
 
 Add this line to your application's Gemfile:
 
+Proxy tube:
+```
+docker build -t tubes . && echo 'Starting' && docker run -v /var/run/docker.sock:/var/run/docker.sock -it -p 3000:3000 tubes
+```
+
+Sample Server:
+```
+docker run -l 'tubes.http.host=foo' -l 'tubes.http.port=5000' -it training/webapp:latest
+```
+
+Sample Client:
+```
+curl -x http://localhost:3000 http://foo.io/
+```
+
 ```ruby
 gem 'tubes'
 ```
