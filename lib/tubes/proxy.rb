@@ -24,8 +24,8 @@ module Tubes
         @p.on_headers_complete = proc do |headers|
           begin
             session = UUID.generate
-            puts "New session: #{session} (#{headers.inspect})"
             tubes_host = headers['Host'].split(':').first.split(".").first
+            puts "New session: #{session} ( #{tubes_host}#{@p.request_url} )"
             target_container = Docker::Container.all(filters: {
                                                        label: ["tubes.http.port",
                                                                "tubes.http.host=#{tubes_host}"]
