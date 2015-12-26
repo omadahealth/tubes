@@ -7,14 +7,18 @@ module Tubes
   class Proxy
     attr_accessor :host, :port
 
-    def initialize(host, port)
+    def initialize(host, port, target_domain, resolv_opts = {})
       @host = host
       @port = port
+      @target_domain = target_domain
+      @resolv_opts = resolv_opts
     end
 
 
     def run
       puts "listening on #{host}:#{port}..."
+      resolver = Resolv::DNS.new(@resolv_opts)
+      target_domain = @target_domain
 
       ::Proxy.start(:host => host, :port => port) do |conn|
         @buffer = ''
@@ -26,19 +30,16 @@ module Tubes
             session = UUID.generate
             tubes_host = headers['Host'].split(':').first.split(".").first
             puts "New session: #{session} ( #{tubes_host}#{@p.request_url} )"
-            target_container = Docker::Container.all(filters: {
-                                                       label: ["tubes.http.port",
-                                                               "tubes.http.host=#{tubes_host}"]
-                                                     }.to_json).sample
-            
-            port = target_container.info["Labels"]["tubes.http.port"]
-            host = Docker::Container.get(target_container.id).info["NetworkSettings"]["IPAddress"]
+            puts "Attempting to get SRV record for '#{tubes_host}.#{target_domain}'"
+            record = resolver.getresources("#{tubes_host}.#{target_domain}", Resolv::DNS::Resource::IN::SRV).sample
+            host = record.target
+            port = record.port
+
+            host = resolver.getaddress(host) if host.is_a? Resolv::DNS::Name
+            puts "Proxying to: '#{host}:#{port}'"
             conn.server session, :host => host, :port => port
             
             conn.relay_to_servers @buffer
-          rescue
-            puts "Error processing request"
-            conn.close_connection
           ensure
             @buffer.clear
             @headers_complete = true

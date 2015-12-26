@@ -2,5 +2,22 @@
 
 require 'tubes'
 
-tube_proxy = Tubes::Proxy.new "0.0.0.0", "3000"
+require 'optparse'
+
+domain = "service.consul."
+
+options = {}
+OptionParser.new do |opts|
+  opts.banner = "Usage: tubes [options]"
+
+  opts.on("-c", "--consul", "Use local consul dns instead of system dns") do |v|
+    options[:nameserver_port] = [['localhost', 8600]]
+  end
+
+  opts.on("-d", "--domain", String, "Domain prefix (Default: '#{domain}')") do |d|
+    domain = d
+  end
+end.parse!
+
+tube_proxy = Tubes::Proxy.new "0.0.0.0", "3000", domain, options
 tube_proxy.run
