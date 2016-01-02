@@ -1,23 +1,22 @@
-#/usr/bin/env ruby
-
 require 'tubes'
 
 require 'optparse'
 
-domain = "service.consul."
 
-options = {}
+options = {consul: "http://localhost:8500"}
 OptionParser.new do |opts|
   opts.banner = "Usage: tubes [options]"
 
-  opts.on("-c", "--consul", "Use local consul dns instead of system dns") do |v|
-    options[:nameserver_port] = [['localhost', 8600]]
-  end
-
-  opts.on("-d", "--domain", String, "Domain prefix (Default: '#{domain}')") do |d|
-    domain = d
+  opts.on("-c", "--consul url", "URL to consul") do |consul|
+    options[:consul] = consul
   end
 end.parse!
 
-tube_proxy = Tubes::Proxy.new "0.0.0.0", "3000", domain, options
+Diplomat.configure do |config|
+  # Set up a custom Consul URL
+  config.url = options[:consul]
+end
+
+
+tube_proxy = Tubes::Proxy.new "0.0.0.0", "3000"
 tube_proxy.run
