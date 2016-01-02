@@ -12,6 +12,8 @@ OptionParser.new do |opts|
   end
 end.parse!
 
+puts "Using consul at: #{options[:consul]}"
+
 Diplomat.configure do |config|
   # Set up a custom Consul URL
   config.url = options[:consul]
