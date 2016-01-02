@@ -28,7 +28,7 @@ module Tubes
             tubes_host = headers['Host'].split(':').first.split(".").first
             print "New session: #{session} ( #{@p.request_url} )"
             service = Diplomat::Service.get(tubes_host, scope=:all).sample
-            host = service.Address
+            host = service.ServiceAddress
             port = service.ServicePort
 
             puts " proxying to: '#{host}:#{port}'"
@@ -37,6 +37,8 @@ module Tubes
             conn.relay_to_servers @buffer
           rescue StandardError => se
             puts "Error proxying: " + se.to_s
+            unbind
+            close_connection
           ensure
             @buffer.clear
             @headers_complete = true
