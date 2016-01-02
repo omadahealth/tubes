@@ -1,7 +1,6 @@
 require 'em-proxy'
 require 'http/parser'
 require 'uuid'
-require 'docker'
 
 module Tubes
   class Proxy
@@ -40,6 +39,8 @@ module Tubes
             conn.server session, :host => host, :port => port
             
             conn.relay_to_servers @buffer
+          rescue StandardError => se
+            print "Error proxying: " + se
           ensure
             @buffer.clear
             @headers_complete = true
