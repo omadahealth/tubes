@@ -9,9 +9,9 @@ Gem::Specification.new do |spec|
   spec.authors       = ["cconstantine"]
   spec.email         = ["cconstan@gmail.com"]
 
-  spec.summary       = %q{TODO: Write a short summary, because Rubygems requires one.}
-  spec.description   = %q{TODO: Write a longer description or delete this line.}
-  spec.homepage      = "TODO: Put your gem's website or public repo URL here."
+  spec.summary       = %q{Consul service lookup request router.}
+  spec.description   = %q{Routes requests based on consul services.}
+  spec.homepage      = "https://github.com/cconstantine/tubes"
   spec.license       = "MIT"
 
   # Prevent pushing this gem to RubyGems.org by setting 'allowed_push_host', or
@@ -23,8 +23,8 @@ Gem::Specification.new do |spec|
   end
 
   spec.files         = `git ls-files -z`.split("\x0").reject { |f| f.match(%r{^(test|spec|features)/}) }
-  spec.bindir        = "bin"
-  spec.executables   = spec.files.grep(%r{^bin/}) { |f| File.basename(f) }
+  spec.bindir        = "exec"
+  spec.executables   = spec.files.grep(%r{^exec/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
   spec.add_dependency "diplomat"

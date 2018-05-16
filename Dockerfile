@@ -1,4 +1,4 @@
-FROM ruby:2.2.3
+FROM ruby:2.5.1
 
 # throw errors if Gemfile has been modified since Gemfile.lock
 RUN mkdir -p /usr/src/app
