@@ -2,32 +2,35 @@ require 'em-proxy'
 require 'http/parser'
 require 'uuid'
 require 'diplomat'
+require 'ipaddr'
 
 module Tubes
   class Proxy
     attr_accessor :host, :port
 
-    def initialize(host, port)
+    def initialize(host, port, cidr)
       @host = host
       @port = port
+      @cidr = IPAddr.new(cidr)
     end
 
 
     def run
       puts "listening on #{host}:#{port}..."
-      resolver = Resolv::DNS.new(@resolv_opts)
-
+      cidr = @cidr
       ::Proxy.start(:host => host, :port => port) do |conn|
         @buffer = ''
         @headers_complete = false
 
         @p = Http::Parser.new
         @p.on_headers_complete = proc do |headers|
+          session = UUID.generate
+
           begin
-            session = UUID.generate
             tubes_host = headers['Host'].split(':').first.split(".").first
-            print "New session: #{session} ( #{@p.request_url} )"
-            service = Diplomat::Service.get(tubes_host, scope=:all).sample
+            print "#{session}: ( #{headers['Host']}#{@p.request_url} )"
+            services = Diplomat::Service.get(tubes_host, scope=:all)
+            service = services.select {|s| cidr.include?(s.ServiceAddress) }.sample
             host = service.ServiceAddress
             port = service.ServicePort
 
@@ -36,7 +39,7 @@ module Tubes
             
             conn.relay_to_servers @buffer
           rescue StandardError => se
-            puts "Error proxying: " + se.to_s
+            puts ". Error proxying: " + se.to_s
             unbind
             close_connection
           ensure

@@ -3,13 +3,30 @@ require 'tubes'
 require 'optparse'
 
 
-options = {consul: "http://localhost:8500"}
+options = { 
+  bind_ip: "0.0.0.0",
+  bind_port: "3000",
+  consul: "http://localhost:8500",
+  cidr: "0.0.0.0/0"
+}
 OptionParser.new do |opts|
   opts.banner = "Usage: tubes [options]"
 
-  opts.on("-c", "--consul url", "URL to consul") do |consul|
+  opts.on("-c", "--consul url", "URL to consul (Default: #{options[:consul]})") do |consul|
     options[:consul] = consul
   end
+
+  opts.on("-m", "--match-cidr cidr", "Proxy to IPs matching CIDR (Default: #{options[:cidr]})") do |cidr|
+    options[:cidr] = cidr
+  end
+
+  opts.on("-b", "--bind-ip ip", "IP to listen for connections on (Default: #{options[:bind_ip]})") do |b|
+    options[:bind_ip] = b
+  end
+  opts.on("-p", "--bind-port port", "Port to listen for connections on (Default: #{options[:bind_port]})") do |b|
+    options[:bind_port] = b
+  end
+
 end.parse!
 
 puts "Using consul at: #{options[:consul]}"
@@ -20,5 +37,5 @@ Diplomat.configure do |config|
 end
 
 
-tube_proxy = Tubes::Proxy.new "0.0.0.0", "3000"
+tube_proxy = Tubes::Proxy.new options[:bind_ip], options[:bind_port], options[:cidr]
 tube_proxy.run
