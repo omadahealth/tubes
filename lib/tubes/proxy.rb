@@ -52,9 +52,10 @@ module Tubes
           unless headers_complete
             buffer << data
             header_parser << data
+            nil
+          else
+            data
           end
-          
-          data
         end
       end
     end
