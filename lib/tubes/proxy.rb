@@ -43,6 +43,7 @@ module Tubes
             unbind
             close_connection
           ensure
+            STDOUT.flush
             buffer.clear
             headers_complete = true
           end
