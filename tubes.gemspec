@@ -28,7 +28,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency "diplomat"
-  spec.add_dependency "em-proxy"
+  spec.add_dependency "eventmachine"
 	spec.add_dependency "http_parser.rb"
 	spec.add_dependency "uuid"
 

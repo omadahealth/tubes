@@ -1,4 +1,4 @@
-require 'em-proxy'
+require 'eventmachine'
 require 'http/parser'
 require 'uuid'
 require 'diplomat'
@@ -6,59 +6,79 @@ require 'ipaddr'
 
 module Tubes
   class Proxy
-    attr_accessor :host, :port
 
-    def initialize(host, port, cidr)
-      @host = host
-      @port = port
-      @cidr = IPAddr.new(cidr)
-    end
+    def self.run(host, port, cidr)
+      cidr = IPAddr.new(cidr)
 
+      EventMachine.epoll
+      EventMachine.run do
+        puts "listening on #{host}:#{port} from #{cidr}"
 
-    def run
-      puts "listening on #{host}:#{port}..."
-      cidr = @cidr
-      ::Proxy.start(:host => host, :port => port) do |conn|
-        buffer = ''
-        headers_complete = false
+        trap("TERM") { stop }
+        trap("INT")  { stop }
 
-        header_parser = Http::Parser.new
-        header_parser.on_headers_complete = proc do |headers|
-          session = UUID.generate
+        EventMachine::start_server(host, port, Tubes::ServerConnection, {debug: false}) do |conn|
+          buffer = ''
+          headers_complete = false
 
-          begin
-            tubes_host = headers['Host'].split(':').first.split(".").first
-            print "#{session}: ( #{headers['Host']}#{header_parser.request_url} )"
-            services = Diplomat::Service.get(tubes_host, scope=:all)
-            service = services.select {|s| cidr.include?(s.ServiceAddress) }.sample
-            host = service.ServiceAddress
-            port = service.ServicePort
+          header_parser = Http::Parser.new
+          header_parser.on_headers_complete = proc do |headers|
+            session = UUID.generate
 
-            puts " proxying to: '#{host}:#{port}'"
-            conn.server session, :host => host, :port => port
-            
-            conn.relay_to_servers buffer
-          rescue StandardError => se
-            puts ". Error proxying: " + se.to_s
-            unbind
-            close_connection
-          ensure
-            STDOUT.flush
-            buffer.clear
-            headers_complete = true
-          end
-        end
+            begin
+              tubes_host = headers['Host'].split(':').first.split(".").first
+              print "#{session}: ( #{headers['Host']} )"
+              services = Diplomat::Service.get(tubes_host, scope=:all)
+              service = services.select {|s| cidr.include?(s.ServiceAddress) }.sample
+              random_service = services.sample
+              if (service)
+                host = service.ServiceAddress
+                port = service.ServicePort
+
+                puts " proxying to: '#{host}:#{port}'"
+                conn.server session, :host => host, :port => port, tls: false
                 
-        conn.on_data do |data|
-          unless headers_complete
-            buffer << data
-            header_parser << data
-            nil
-          else
-            data
+                conn.relay_to_servers buffer
+              elsif random_service
+                host = random_service.ServiceAddress
+                port = random_service.ServicePort
+                puts " proxy to '#{host}:443'"
+                conn.server session, :host => "10.220.192.217", :port => "443", tls: {sni_hostname: headers['Host'].split(':').first}
+                conn.relay_to_servers buffer
+              else
+                puts ". No backend registered for #{tubes_host}"
+                conn.unbind
+                conn.close_connection
+              end
+            rescue StandardError => se
+              puts ". Error proxying: " + se.to_s
+              conn.unbind
+              conn.close_connection
+            ensure
+              STDOUT.flush
+              buffer.clear
+              headers_complete = true
+            end
+          end
+                  
+          conn.on_data do |data|
+            unless headers_complete
+              buffer << data
+              header_parser << data
+              nil
+            else
+              data
+            end
           end
         end
       end
     end
+
+  
+    def self.stop
+      puts "Terminating ProxyServer"
+      EventMachine.stop
+    end
+    
   end
 end
