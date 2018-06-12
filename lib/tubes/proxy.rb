@@ -43,7 +43,7 @@ module Tubes
                 host = random_service.ServiceAddress
                 port = random_service.ServicePort
                 puts " proxy to '#{host}:443'"
-                conn.server session, :host => "10.220.192.217", :port => "443", tls: {sni_hostname: headers['Host'].split(':').first}
+                conn.server session, :host => host, :port => "443", tls: {sni_hostname: headers['Host'].split(':').first}
                 conn.relay_to_servers buffer
               else
                 puts ". No backend registered for #{tubes_host}"
