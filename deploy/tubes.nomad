@@ -12,7 +12,7 @@ job "tubes/{{ datacenter }}" {
       driver = "docker"
       config {
         image = "{{ 'TUBES_IMAGE' | env }}:{{ version }}"
-        args = ["--consul", "https://consul.staging.omadahealth.net:8500", "-p", "3000","--match-cidr", "${attr.unique.network.ip-address}/32"]
+        args = ["--consul", "{{ 'CONSUL_URL' | env }}", "-p", "3000","--match-cidr", "${attr.unique.network.ip-address}/32"]
         port_map {
           tubes = 3000
         }
