@@ -38,20 +38,13 @@ module Tubes
 
     private
 
-    def tag_to_label_pair(tag)
-      return nil unless tag.start_with?("tubes-label:")
-
-      splits = tag.split(':')
-
-      return [splits[1].to_sym, splits[2]]
-    end
-
     def service_labels(service)
-      service.ServiceTags.map {|tag| tag_to_label_pair(tag)}.compact.to_h.merge(
-        {
-          service: service.ServiceName
-        }
-       )
+      job_name_tag = service.ServiceTags.find {|tag| tag.start_with?("tubes-job-name:")}
+
+      labels = { service: service.ServiceName }
+      labels[:nomad_job] = job_name_tag.split(":")[1] unless job_name_tag.nil?
+
+      return labels
     end
 
   end
@@ -72,7 +65,7 @@ module Tubes
         connection_start = Time.now
         buffer = ''
         headers_complete = false
-        request_labels = {service: :unknown}
+        request_labels = {service: :unknown, nomad_job: :unknown}
 
         header_parser = Http::Parser.new
         header_parser.on_headers_complete = proc do |headers|
@@ -108,7 +101,9 @@ module Tubes
         conn.on_response do |name, data|
           begin
             tubes_proxy_bytes_sent.increment(labels=request_labels, by=data.bytesize)
-          rescue Prometheus::Client::LabelSetValidator::LabelSetError; end
+          rescue Prometheus::Client::LabelSetValidator::LabelSetError => e
+            p e
+          end
 
           data
         end
@@ -116,7 +111,9 @@ module Tubes
         conn.on_data do |data|
           begin
             tubes_proxy_bytes_recv.increment(labels=request_labels, by=data.bytesize)
-          rescue Prometheus::Client::LabelSetValidator::LabelSetError; end
+          rescue Prometheus::Client::LabelSetValidator::LabelSetError => e
+            p e
+          end
 
           unless headers_complete
             buffer << data
@@ -131,7 +128,9 @@ module Tubes
           delta = Time.now - connection_start
           begin
             performance_histo.observe(request_labels, delta)
-          rescue Prometheus::Client::LabelSetValidator::LabelSetError; end
+          rescue Prometheus::Client::LabelSetValidator::LabelSetError => e
+            p e
+          end
         end
       end
     end

@@ -26,7 +26,7 @@ job "tubes/{{ datacenter }}" {
       
       resources {
         cpu = 500
-        memory = 128
+        memory = 64
         network {
           mbits = 1
           port "proxy" {
