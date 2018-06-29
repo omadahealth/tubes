@@ -3,6 +3,11 @@ job "tubes/{{ datacenter }}" {
 
   type = "system"
 
+  update {
+    stagger = "5s"
+    max_parallel = 1
+  }
+
   group "routing" {
     task "tubes" {
       driver = "docker"
