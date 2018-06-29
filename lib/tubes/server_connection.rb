@@ -14,8 +14,8 @@ module Tubes
     def initialize(options)
       @debug = options[:debug] || false
       @servers = {}
+      @registry = options[:registry]
     end
-
 
 
     def receive_data(data)

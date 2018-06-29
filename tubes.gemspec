@@ -31,6 +31,10 @@ Gem::Specification.new do |spec|
   spec.add_dependency "eventmachine"
 	spec.add_dependency "http_parser.rb"
 	spec.add_dependency "uuid"
+  # spec.add_dependency "greek_fire", ">= 0.3.0"
+  spec.add_dependency "thin"
+  # spec.add_dependency 'descriptive_statistics', '~> 2.4.0'
+  spec.add_dependency 'prometheus-client'
 
   spec.add_development_dependency "bundler", "~> 1.10"
   spec.add_development_dependency "rake", "~> 10.0"

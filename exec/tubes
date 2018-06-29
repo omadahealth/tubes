@@ -1,16 +1,15 @@
-require 'tubes'
 
 require 'optparse'
 
-
 options = { 
   bind_ip: "0.0.0.0",
-  bind_port: "3000",
+  bind_port: 3000,
   consul: "http://localhost:8500",
   cidr: "0.0.0.0/0",
   tls_cert: false,
   tls_key: false
 }
+
 OptionParser.new do |opts|
   opts.banner = "Usage: tubes [options]"
 
@@ -26,9 +25,18 @@ OptionParser.new do |opts|
     options[:bind_ip] = b
   end
   opts.on("-p", "--bind-port port", "Port to listen for connections on (Default: #{options[:bind_port]})") do |b|
-    options[:bind_port] = b
+    options[:bind_port] = b.to_i
   end
+
 end.parse!
+
+
+require 'tubes'
+require 'thin'
+
+require 'prometheus/middleware/exporter'
+require 'prometheus/middleware/collector'
+
 
 puts "Using consul at: #{options[:consul]}"
 
@@ -38,4 +46,20 @@ Diplomat.configure do |config|
 end
 
 
-Tubes::Proxy.run options[:bind_ip], options[:bind_port], options[:cidr]
+def self.stop
+  puts "Terminating ProxyServer"
+  EventMachine.stop
+end
+
+trap("TERM") { stop }
+trap("INT")  { stop }
+
+
+EventMachine.epoll
+EventMachine.run do
+   Tubes::Proxy.run options[:bind_ip], options[:bind_port], options[:cidr]
+   Thin::Server.start(options[:bind_ip], options[:bind_port]+1, signals: false) do 
+    use Prometheus::Middleware::Exporter
+    run ->(_) { [200, {'Content-Type' => 'text/html'}, ['OK']] }
+  end
+end

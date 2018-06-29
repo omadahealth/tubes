@@ -3,82 +3,137 @@ require 'http/parser'
 require 'uuid'
 require 'diplomat'
 require 'ipaddr'
+require 'prometheus/client'
+
 
 module Tubes
+
+  class SelectedService
+    attr_reader :ip, :port, :tls, :extra_labels
+
+    def initialize(host_header, cidr)
+      @ip = nil
+
+      services = Diplomat::Service.get(host_header.split(".").first, scope=:all)
+      service = services.select {|s| cidr.include?(s.ServiceAddress) }.sample
+      random_service = services.sample
+      if service
+        @ip = service.ServiceAddress
+        @port = service.ServicePort
+        @tls = false
+        @extra_labels = service_labels(service)
+        @extra_labels[:proxy_type] = 'local'
+      elsif random_service
+        @ip = random_service.ServiceAddress
+        @port = "443"
+        @tls = { sni_hostname: host_header }
+        @extra_labels = service_labels(random_service)
+        @extra_labels[:proxy_type] = 'remote'
+      end
+    end
+
+    def present?
+      !@ip.nil?
+    end
+
+    private
+
+    def tag_to_label_pair(tag)
+      return nil unless tag.start_with?("tubes-label:")
+
+      splits = tag.split(':')
+
+      return [splits[1].to_sym, splits[2]]
+    end
+
+    def service_labels(service)
+      service.ServiceTags.map {|tag| tag_to_label_pair(tag)}.compact.to_h.merge(
+        {
+          service: service.ServiceName
+        }
+       )
+    end
+
+  end
+
+
   class Proxy
 
     def self.run(host, port, cidr)
       cidr = IPAddr.new(cidr)
+      puts "listening on #{host}:#{port} from #{cidr}"
+      registry = Prometheus::Client.registry
 
-      EventMachine.epoll
-      EventMachine.run do
-        puts "listening on #{host}:#{port} from #{cidr}"
+      performance_histo = registry.histogram(:tubes_proxy_request_performance, "Time to complete requests")
+      tubes_proxy_bytes_sent = registry.counter(:tubes_proxy_bytes_sent, "Number of bytes sent to client")
+      tubes_proxy_bytes_recv = registry.counter(:tubes_proxy_bytes_recv, "Number of bytes received from client")
 
-        trap("TERM") { stop }
-        trap("INT")  { stop }
+      EventMachine::start_server(host, port, Tubes::ServerConnection, {registry: Prometheus::Client.registry, debug: false}) do |conn|
+        connection_start = Time.now
+        buffer = ''
+        headers_complete = false
+        request_labels = {service: :unknown}
 
-        EventMachine::start_server(host, port, Tubes::ServerConnection, {debug: false}) do |conn|
-          buffer = ''
-          headers_complete = false
+        header_parser = Http::Parser.new
+        header_parser.on_headers_complete = proc do |headers|
+          session = UUID.generate
 
-          header_parser = Http::Parser.new
-          header_parser.on_headers_complete = proc do |headers|
-            session = UUID.generate
+          begin
+            selected_service = SelectedService.new(headers['Host'], cidr)
+            print "#{session}: ( #{headers['Host']} )"
 
-            begin
-              tubes_host = headers['Host'].split(':').first.split(".").first
-              print "#{session}: ( #{headers['Host']} )"
-              services = Diplomat::Service.get(tubes_host, scope=:all)
-              service = services.select {|s| cidr.include?(s.ServiceAddress) }.sample
-              random_service = services.sample
-              if (service)
-                host = service.ServiceAddress
-                port = service.ServicePort
-
-                puts " proxying to: '#{host}:#{port}'"
-                conn.server session, :host => host, :port => port, tls: false
-                
-                conn.relay_to_servers buffer
-              elsif random_service
-                host = random_service.ServiceAddress
-                port = random_service.ServicePort
-                puts " proxy to '#{host}:443'"
-                conn.server session, :host => host, :port => "443", tls: {sni_hostname: headers['Host'].split(':').first}
-                conn.relay_to_servers buffer
-              else
-                puts ". No backend registered for #{tubes_host}"
-                conn.unbind
-                conn.close_connection
-              end
-            rescue StandardError => se
-              puts ". Error proxying: " + se.to_s
+            if selected_service.present?
+              ip = selected_service.ip
+              port = selected_service.port
+              tls = selected_service.tls
+              puts " proxying to: '#{ip}:#{port}'"
+              conn.server(session, :host => ip, :port => port, :tls => tls)
+              request_labels.merge!(selected_service.extra_labels)
+              conn.relay_to_servers buffer
+            else
+              puts ". No backend registered for #{tubes_host}"
               conn.unbind
               conn.close_connection
-            ensure
-              STDOUT.flush
-              buffer.clear
-              headers_complete = true
             end
+          rescue StandardError => se
+            puts ". Error proxying: " + se.to_s
+            conn.unbind
+            conn.close_connection
+          ensure
+            STDOUT.flush
+            buffer.clear
+            headers_complete = true
           end
-                  
-          conn.on_data do |data|
-            unless headers_complete
-              buffer << data
-              header_parser << data
-              nil
-            else
-              data
-            end
+        end
+        conn.on_response do |name, data|
+          begin
+            tubes_proxy_bytes_sent.increment(labels=request_labels, by=data.bytesize)
+          rescue Prometheus::Client::LabelSetValidator::LabelSetError; end
+
+          data
+        end
+
+        conn.on_data do |data|
+          begin
+            tubes_proxy_bytes_recv.increment(labels=request_labels, by=data.bytesize)
+          rescue Prometheus::Client::LabelSetValidator::LabelSetError; end
+
+          unless headers_complete
+            buffer << data
+            header_parser << data
+            nil
+          else
+            data
           end
+        end
+
+        conn.on_finish do
+          delta = Time.now - connection_start
+          begin
+            performance_histo.observe(request_labels, delta)
+          rescue Prometheus::Client::LabelSetValidator::LabelSetError; end
         end
       end
     end
-
-  
-    def self.stop
-      puts "Terminating ProxyServer"
-      EventMachine.stop
-    end
-    
   end
 end
