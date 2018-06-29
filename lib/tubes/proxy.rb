@@ -82,7 +82,14 @@ module Tubes
               puts " proxying to: '#{ip}:#{port}'"
               conn.server(session, :host => ip, :port => port, :tls => tls)
               request_labels.merge!(selected_service.extra_labels)
-              conn.relay_to_servers buffer
+
+              begin
+                tubes_proxy_bytes_recv.increment(labels=request_labels, by=buffer.bytesize)
+              rescue Prometheus::Client::LabelSetValidator::LabelSetError => e
+                p e
+              end
+
+              conn.relay_to_servers( buffer)
             else
               puts ". No backend registered for #{tubes_host}"
               conn.unbind
@@ -109,17 +116,16 @@ module Tubes
         end
 
         conn.on_data do |data|
-          begin
-            tubes_proxy_bytes_recv.increment(labels=request_labels, by=data.bytesize)
-          rescue Prometheus::Client::LabelSetValidator::LabelSetError => e
-            p e
-          end
-
           unless headers_complete
             buffer << data
             header_parser << data
             nil
           else
+            begin
+              tubes_proxy_bytes_recv.increment(labels=request_labels, by=data.bytesize)
+            rescue Prometheus::Client::LabelSetValidator::LabelSetError => e
+              p e
+            end
             data
           end
         end
