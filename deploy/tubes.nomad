@@ -13,10 +13,10 @@ job "tubes/{{ datacenter }}" {
       driver = "docker"
       config {
         image = "{{ 'TUBES_IMAGE' | env }}:{{ version }}"
-        args = ["--consul", "{{ 'CONSUL_URL' | env }}", "-p", "3000","--match-cidr", "${attr.unique.network.ip-address}/32"]
+        args = ["--consul", "{{ 'CONSUL_URL' | env }}", "-p", "2000","--match-cidr", "${attr.unique.network.ip-address}/32"]
         port_map {
           proxy = 3000
-          metrics = 3001
+          metrics = 3002
         }
         logging {
           type = "journald"
@@ -33,7 +33,7 @@ job "tubes/{{ datacenter }}" {
             static = 3000
           }
           port "metrics" {
-            static = 3001
+            static = 3002
           }
         }
       }
