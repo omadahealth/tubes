@@ -16,7 +16,7 @@ job "tubes/{{ datacenter }}" {
         args = ["--consul", "{{ 'CONSUL_URL' | env }}", "-p", "3000","--match-cidr", "${attr.unique.network.ip-address}/32"]
         port_map {
           proxy = 3000
-          metrics = 3002
+          metrics = 3001
         }
         logging {
           type = "journald"
