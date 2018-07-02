@@ -9,12 +9,16 @@ require 'prometheus/client'
 module Tubes
 
   class SelectedService
-    attr_reader :ip, :port, :tls, :extra_labels
+    attr_reader :ip, :port, :tls, :service_name, :fqdn, :extra_labels
 
-    def initialize(host_header, cidr)
+    def initialize(headers, cidr)
       @ip = nil
+      @fqdn = headers['Host']
+      @service_name = @fqdn.split(".").first
 
-      services = Diplomat::Service.get(host_header.split(".").first, scope=:all)
+      @sni_hostname = headers['Sni-Host'] || headers['Host']
+
+      services = Diplomat::Service.get(@service_name, scope=:all)
       service = services.select {|s| cidr.include?(s.ServiceAddress) }.sample
       random_service = services.sample
       if service
@@ -26,7 +30,7 @@ module Tubes
       elsif random_service
         @ip = random_service.ServiceAddress
         @port = "443"
-        @tls = { sni_hostname: host_header }
+        @tls = { sni_hostname: @sni_hostname }
         @extra_labels = service_labels(random_service)
         @extra_labels[:proxy_type] = 'remote'
       end
@@ -72,8 +76,8 @@ module Tubes
           session = UUID.generate
 
           begin
-            selected_service = SelectedService.new(headers['Host'], cidr)
-            print "#{session}: ( #{headers['Host']} )"
+            selected_service = SelectedService.new(headers, cidr)
+            print "#{session}: ( #{selected_service.service_name} )"
 
             if selected_service.present?
               ip = selected_service.ip
@@ -91,7 +95,7 @@ module Tubes
 
               conn.relay_to_servers( buffer)
             else
-              puts ". No backend registered for #{tubes_host}"
+              puts ". No backend registered for #{selected_service.fqdn}"
               conn.unbind
               conn.close_connection
             end
