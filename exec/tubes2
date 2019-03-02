@@ -1,0 +1,36 @@
+require 'tubes'
+
+module ProxyConnection
+  def initialize(client, request)
+    @client, @request = client, request
+  end
+
+  def post_init
+    EM::enable_proxy(self, @client)
+  end
+
+  def connection_completed
+    send_data @request
+  end
+
+  def proxy_target_unbound
+    close_connection
+  end
+
+  def unbind
+    @client.close_connection_after_writing
+  end
+end
+
+module ProxyServer
+  def receive_data(data)
+    (@buf ||= "") << data
+    if @buf =~ /\r\n\r\n/ # all http headers received
+      EventMachine.connect("127.0.0.1", 8080, ProxyConnection, self, data)
+    end
+  end
+end
+
+EventMachine.run {
+  EventMachine.start_server("127.0.0.1", 3001, ProxyServer)
+}
