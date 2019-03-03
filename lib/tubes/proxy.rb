@@ -12,30 +12,30 @@ module Tubes
     attr_reader :ip, :port, :tls, :service_name, :fqdn, :extra_labels
 
     def initialize(headers, cidr)
-      @ip = '127.0.0.1'
-      @port = 8080
+      #@ip = '172.16.238.10'
+      #@port = 80
       @fqdn = headers['Host']
       @service_name = @fqdn.split(".").first
-      @tls = false
-      @extra_labels = {}
-      @sni_hostname = headers['Sni-Host'] || headers['Host']
-      #
-      # services = Diplomat::Service.get(@service_name, scope=:all)
-      # service = services.select {|s| cidr.include?(s.ServiceAddress) }.sample
-      # random_service = services.sample
-      # if service
-      #   @ip = service.ServiceAddress
-      #   @port = service.ServicePort
-      #   @tls = false
-      #   @extra_labels = service_labels(service)
-      #   @extra_labels[:proxy_type] = 'local'
-      # elsif random_service
-      #   @ip = random_service.ServiceAddress
-      #   @port = "443"
-      #   @tls = { sni_hostname: @sni_hostname }
-      #   @extra_labels = service_labels(random_service)
-      #   @extra_labels[:proxy_type] = 'remote'
-      # end
+      #@tls = false
+      #@extra_labels = {}
+      @sni_hostname = headers['Sni-Host'] || @fqdn
+      
+      services = Diplomat::Service.get(@service_name, scope=:all)
+      service = services.select {|s| cidr.include?(s.ServiceAddress) }.sample
+      random_service = services.sample
+      if service
+        @ip = service.ServiceAddress
+        @port = service.ServicePort
+        @tls = false
+        @extra_labels = service_labels(service)
+        @extra_labels[:proxy_type] = 'local'
+      elsif random_service
+        @ip = random_service.ServiceAddress
+        @port = "443"
+        @tls = { sni_hostname: @sni_hostname }
+        @extra_labels = service_labels(random_service)
+        @extra_labels[:proxy_type] = 'remote'
+      end
     end
 
     def present?
@@ -79,13 +79,13 @@ module Tubes
 
           begin
             selected_service = SelectedService.new(headers, cidr)
-            #print "#{session}: ( #{selected_service.service_name} )"
+            print "#{session}: ( #{selected_service.service_name} )"
 
             if selected_service.present?
               ip = selected_service.ip
               port = selected_service.port
               tls = selected_service.tls
-              #puts " proxying to: '#{ip}:#{port}'"
+              puts " proxying to: '#{ip}:#{port}'"
               conn.server(session, :host => ip, :port => port, :tls => tls)
               request_labels.merge!(selected_service.extra_labels)
 

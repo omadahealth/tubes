@@ -1,4 +1,4 @@
-require 'tubes'
+require 'eventmachine'
 
 module ProxyConnection
   def initialize(client, request)
@@ -26,11 +26,12 @@ module ProxyServer
   def receive_data(data)
     (@buf ||= "") << data
     if @buf =~ /\r\n\r\n/ # all http headers received
-      EventMachine.connect("127.0.0.1", 8080, ProxyConnection, self, data)
+      EventMachine.connect("172.16.238.10", 80, ProxyConnection, self, data)
     end
   end
 end
 
 EventMachine.run {
-  EventMachine.start_server("127.0.0.1", 3001, ProxyServer)
+  puts "Starting listening on 0.0.0.0:3003"
+  EventMachine.start_server("0.0.0.0", 3003, ProxyServer)
 }

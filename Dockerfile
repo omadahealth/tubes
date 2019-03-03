@@ -5,8 +5,8 @@ RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app
 
 COPY . /usr/src/app
-RUN bundle install --deployment --without development
+RUN bundle install
 
 EXPOSE 3000
 
-ENTRYPOINT ["tubes"]
+#ENTRYPOINT ["bundle", "exec", "tubes"]
