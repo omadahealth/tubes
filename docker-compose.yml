@@ -1,0 +1,50 @@
+version: '2'
+services:
+  tubes:
+    build: .
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    networks:
+      app_net:
+        ipv4_address: 172.16.238.11
+    command: bundle exec tubes --consul http://172.16.238.12:8500
+  tubes2:
+    build: .
+    ports:
+      - "3003:3003"
+    networks:
+      app_net:
+        ipv4_address: 172.16.238.13
+    command: bundle exec tubes2
+  consul:
+    image: consul:1.0.8
+    command: consul agent -dev -client 172.16.238.12 -config-file /config/nginx_service.json
+    volumes:
+      - ./spec/consul:/config
+    ports:
+      - "8400:8400"
+      - "8500:8500"
+      - "8600:8600"
+      - "8600:8600/udp"
+    networks:
+      app_net:
+        ipv4_address: 172.16.238.12
+    environment:
+      - CONSUL_BIND_INTERFACE=eth0
+  nginx:
+    image: nginx:latest
+    ports:
+      - "8080:80"
+    networks:
+      app_net:
+        ipv4_address: 172.16.238.10
+
+networks:
+  app_net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.16.238.0/24
+        gateway: 172.16.238.1

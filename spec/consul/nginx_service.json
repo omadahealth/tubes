@@ -1,0 +1,7 @@
+{
+  "service": {
+    "name": "nginx",
+    "address": "172.16.238.10",
+    "port": 80
+  }
+}
