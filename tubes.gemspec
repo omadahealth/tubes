@@ -35,6 +35,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "thin"
   # spec.add_dependency 'descriptive_statistics', '~> 2.4.0'
   spec.add_dependency 'prometheus-client'
+  spec.add_dependency 'activesupport'
 
   spec.add_development_dependency "bundler"
   spec.add_development_dependency "rake", "~> 10.0"
